@@ -1,18 +1,35 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
+import tseslint from "typescript-eslint";
+import nextPlugin from "@next/eslint-plugin-next";
+import eslintConfigPrettier from "eslint-config-prettier";
 
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
-  // Override default ignores of eslint-config-next.
-  globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-  ]),
-]);
-
-export default eslintConfig;
+export default tseslint.config(
+    // 1. Глобальные игноры (должны быть в самом начале отдельным объектом!)
+    {
+        ignores: [
+            ".next/**/*",
+            "node_modules/**/*",
+            "dist/**/*",
+            "prettier.config.js",
+            "lint-staged.config.js"
+        ],
+    },
+    // 2. Базовые рекомендуемые правила для JS и TypeScript
+    ...tseslint.configs.recommended,
+    {
+        // 3. Настройки для файлов проекта
+        files: ["**/*.{js,jsx,ts,tsx}"],
+        plugins: {
+            "@next/next": nextPlugin,
+        },
+        rules: {
+            ...nextPlugin.configs.recommended.rules,
+            ...nextPlugin.configs["core-web-vitals"].rules,
+            
+            "no-console": "warn",
+            "@typescript-eslint/no-unused-vars": "error",
+            "@typescript-eslint/no-explicit-any": "error",
+        },
+    },
+    // 4. Отключаем конфликты с Prettier
+    eslintConfigPrettier
+);
