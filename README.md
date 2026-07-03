@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Email Generator
 
-## Getting Started
+Генератор деловых писем на базе Google Gemini. Пользователь описывает задачу,
+выбирает тон, длину и язык — приложение генерирует готовое письмо и сохраняет
+его в историю с возможностью копирования, повторной генерации и удаления.
 
-First, run the development server:
+## Стек
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Next.js 16** (App Router, Server Actions, Proxy) + **React 19**
+- **TypeScript** (strict)
+- **Supabase** — авторизация (email/password) и хранение писем (Postgres + RLS)
+- **Google Gemini** (`@google/genai`, модель `gemini-2.5-flash`)
+- **Zustand** — состояние формы генератора
+- **TanStack Query**, **Zod**, **Tailwind CSS 4** + **shadcn/ui**, **sonner**
+
+## Структура
+
+```
+src/
+├─ app/
+│  ├─ page.tsx                 # Лендинг
+│  ├─ login/ · register/       # Аутентификация
+│  ├─ auth/actions.ts          # Server Actions: login / signup / signOut
+│  ├─ dashboard/               # Генератор писем + история
+│  │  ├─ actions.ts            # Server Action генерации (валидация + лимит)
+│  │  └─ settings/             # Профиль, лимиты, смена пароля
+│  └─ api/emails/[id]/route.ts # DELETE письма
+├─ services/ai/                # Абстракция ИИ (AIService → GeminiService)
+├─ lib/
+│  ├─ supabase/                # browser / server / proxy клиенты + типы БД
+│  ├─ constants.ts             # Тоны, длины, языки, дневной лимит
+│  ├─ validations.ts           # Zod-схемы
+│  └─ store.ts                 # Zustand store формы
+└─ proxy.ts                    # Обновление сессии Supabase на каждом запросе
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Запуск
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Установите зависимости:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+    ```bash
+    npm install
+    ```
 
-## Learn More
+2. Создайте `.env.local` на основе `.env.example` и заполните значения:
 
-To learn more about Next.js, take a look at the following resources:
+    ```bash
+    cp .env.example .env.local
+    ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+    | Переменная                      | Назначение                                                  |
+    | ------------------------------- | ----------------------------------------------------------- |
+    | `NEXT_PUBLIC_SUPABASE_URL`      | URL проекта Supabase                                        |
+    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Публичный anon-ключ Supabase                                |
+    | `GEMINI_API_KEY`                | Ключ Google Gemini (серверный, обязателен)                  |
+    | `NEXT_PUBLIC_SITE_URL`          | Публичный адрес приложения (для ссылок подтверждения email) |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+3. В Supabase должны существовать таблицы `emails` и `profiles` с включённым
+   **RLS** (пользователь видит и изменяет только свои строки).
 
-## Deploy on Vercel
+4. Запустите dev-сервер:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+    ```bash
+    npm run dev
+    ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+    Откройте [http://localhost:3000](http://localhost:3000).
+
+## Скрипты
+
+| Команда         | Действие                 |
+| --------------- | ------------------------ |
+| `npm run dev`   | Dev-сервер (Turbopack)   |
+| `npm run build` | Production-сборка        |
+| `npm run start` | Запуск production-сборки |
+| `npm run lint`  | ESLint                   |
+
+## Лимиты
+
+Бесплатный тариф ограничен `DAILY_FREE_LIMIT` генерациями в сутки
+(см. [src/lib/constants.ts](src/lib/constants.ts)). Лимит проверяется на сервере
+в экшене генерации и отображается в настройках.
