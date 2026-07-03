@@ -25,7 +25,8 @@ export default tseslint.config(
             ...nextPlugin.configs.recommended.rules,
             ...nextPlugin.configs["core-web-vitals"].rules,
             
-            "no-console": "warn",
+            // Разрешаем намеренное серверное логирование ошибок, но ловим случайные console.log
+            "no-console": ["warn", { allow: ["error", "warn"] }],
             "@typescript-eslint/no-unused-vars": "error",
             "@typescript-eslint/no-explicit-any": "error",
         },
