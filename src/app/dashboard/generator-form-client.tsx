@@ -2,6 +2,8 @@
 
 import { useRef } from "react";
 
+import { toast } from "sonner";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     Select,
@@ -22,10 +24,11 @@ import {
 } from "@/lib/constants";
 import { useGeneratorStore } from "@/lib/store";
 
+import type { GenerateEmailResult } from "./actions";
 import { SubmitButton } from "./submit-button";
 
 interface GeneratorFormClientProps {
-    generateAction: (formData: FormData) => Promise<void>;
+    generateAction: (formData: FormData) => Promise<GenerateEmailResult>;
 }
 
 export function GeneratorFormClient({ generateAction }: GeneratorFormClientProps) {
@@ -33,10 +36,18 @@ export function GeneratorFormClient({ generateAction }: GeneratorFormClientProps
     const formRef = useRef<HTMLFormElement>(null);
 
     const handleAction = async (formData: FormData) => {
-        await generateAction(formData);
+        const result = await generateAction(formData);
+
+        // Ожидаемые ошибки (лимит, валидация, сбой ИИ) показываем тостом
+        if (result?.error) {
+            toast.error(result.error);
+            return;
+        }
+
         // Мягко очищаем только поле промпта после отправки, сохраняя настройки тона и языка
         setFormValues({ prompt: "" });
         formRef.current?.reset();
+        toast.success("Письмо успешно сгенерировано");
     };
 
     // Нормализуем значения из стора к допустимым (единый источник — @/lib/constants)
@@ -54,10 +65,11 @@ export function GeneratorFormClient({ generateAction }: GeneratorFormClientProps
                 <form ref={formRef} action={handleAction} className="space-y-5">
                     {/* ПОЛЕ 1: ПРОМПТ */}
                     <div className="space-y-2">
-                        <label className="text-sm font-medium">
+                        <label htmlFor="prompt" className="text-sm font-medium">
                             What should the email be about?
                         </label>
                         <Textarea
+                            id="prompt"
                             name="prompt"
                             placeholder="Ask client for a feedback regarding our last meeting..."
                             required
@@ -69,13 +81,15 @@ export function GeneratorFormClient({ generateAction }: GeneratorFormClientProps
 
                     {/* ПОЛЕ 2: ТОН */}
                     <div className="space-y-2">
-                        <label className="text-sm font-medium">Tone</label>
+                        <label htmlFor="tone" className="text-sm font-medium">
+                            Tone
+                        </label>
                         <Select
                             name="tone"
                             value={currentTone}
                             onValueChange={(value) => setFormValues({ tone: value })}
                         >
-                            <SelectTrigger className="bg-background w-full">
+                            <SelectTrigger id="tone" className="bg-background w-full">
                                 <SelectValue placeholder="Select tone" />
                             </SelectTrigger>
                             <SelectContent>
@@ -88,13 +102,15 @@ export function GeneratorFormClient({ generateAction }: GeneratorFormClientProps
 
                     {/* ПОЛЕ 3: ДЛИНА ПИСЬМА */}
                     <div className="space-y-2">
-                        <label className="text-sm font-medium">Length</label>
+                        <label htmlFor="length" className="text-sm font-medium">
+                            Length
+                        </label>
                         <Select
                             name="length"
                             value={currentLength}
                             onValueChange={(value) => setFormValues({ length: value })}
                         >
-                            <SelectTrigger className="bg-background w-full">
+                            <SelectTrigger id="length" className="bg-background w-full">
                                 <SelectValue placeholder="Select length" />
                             </SelectTrigger>
                             <SelectContent>
@@ -107,13 +123,15 @@ export function GeneratorFormClient({ generateAction }: GeneratorFormClientProps
 
                     {/* ПОЛЕ 4: ЯЗЫК */}
                     <div className="space-y-2">
-                        <label className="text-sm font-medium">Language</label>
+                        <label htmlFor="language" className="text-sm font-medium">
+                            Language
+                        </label>
                         <Select
                             name="language"
                             value={currentLanguage}
                             onValueChange={(value) => setFormValues({ language: value })}
                         >
-                            <SelectTrigger className="bg-background w-full">
+                            <SelectTrigger id="language" className="bg-background w-full">
                                 <SelectValue placeholder="Select language" />
                             </SelectTrigger>
                             <SelectContent>

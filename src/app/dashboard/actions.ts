@@ -16,14 +16,18 @@ import { createClient } from "@/lib/supabase/server";
 import { generateEmailSchema } from "@/lib/validations";
 import { aiService } from "@/services";
 
-export async function generateEmail(formData: FormData) {
+// Возвращаемый результат экшена. Ожидаемые ошибки возвращаем полем `error`
+// (а не throw), т.к. в production Next.js маскирует текст брошенных ошибок.
+export type GenerateEmailResult = { error?: string };
+
+export async function generateEmail(formData: FormData): Promise<GenerateEmailResult> {
     const supabase = await createClient();
 
     // 1. Проверяем авторизацию
     const {
         data: { user },
     } = await supabase.auth.getUser();
-    if (!user) throw new Error("Unauthorized");
+    if (!user) return { error: "Сессия истекла. Войдите в систему заново." };
 
     // 2. Валидируем вход единой Zod-схемой (та же, что использует фронтенд)
     const parsed = generateEmailSchema.safeParse({
@@ -33,7 +37,7 @@ export async function generateEmail(formData: FormData) {
         language: formData.get("language"),
     });
     if (!parsed.success) {
-        throw new Error(parsed.error.issues[0]?.message ?? "Некорректные данные формы");
+        return { error: parsed.error.issues[0]?.message ?? "Некорректные данные формы" };
     }
 
     // 3. Нормализуем параметры к допустимому множеству (защита от подделки значений select)
@@ -52,13 +56,18 @@ export async function generateEmail(formData: FormData) {
         .gte("created_at", startOfDay.toISOString());
 
     if ((count ?? 0) >= DAILY_FREE_LIMIT) {
-        throw new Error(
-            `Достигнут дневной лимит (${DAILY_FREE_LIMIT} писем). Попробуйте снова завтра.`
-        );
+        return {
+            error: `Достигнут дневной лимит (${DAILY_FREE_LIMIT} писем). Попробуйте снова завтра.`,
+        };
     }
 
     // 5. Генерируем письмо через сервисный слой (единственный путь к ИИ)
-    const result = await aiService.generateEmail({ prompt, tone, length, language });
+    let result: string;
+    try {
+        result = await aiService.generateEmail({ prompt, tone, length, language });
+    } catch {
+        return { error: "Не удалось сгенерировать письмо. Попробуйте еще раз." };
+    }
 
     // 6. Сохраняем результат в базу данных Supabase
     const { error } = await supabase.from("emails").insert({
@@ -71,9 +80,11 @@ export async function generateEmail(formData: FormData) {
     });
 
     if (error) {
-        throw new Error(error.message);
+        return { error: "Не удалось сохранить письмо. Попробуйте еще раз." };
     }
 
     // 7. Инвалидируем кэш дашборда для мгновенного обновления истории
     revalidatePath("/dashboard");
+
+    return {};
 }

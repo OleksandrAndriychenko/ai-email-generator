@@ -1,16 +1,14 @@
-import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { generateEmail } from "./actions";
+
+import { signOutAction } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/server";
+
+import { generateEmail } from "./actions";
+import { GeneratorFormClient } from "./generator-form-client";
+import { HistoryCardClient } from "./history-card-client";
 
 export default async function DashboardPage() {
     const supabase = await createClient();
@@ -23,11 +21,14 @@ export default async function DashboardPage() {
         redirect("/login");
     }
 
-    // Запрашиваем историю писем текущего пользователя (сортируем по новизне)
+    // Запрашиваем историю писем текущего пользователя (сортируем по новизне).
+    // RLS ограничивает выборку строками самого пользователя; limit защищает от
+    // раздувания payload при большой истории.
     const { data: emails } = await supabase
         .from("emails")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(50);
 
     return (
         <div className="min-h-screen bg-background text-foreground p-6 sm:p-10">
@@ -36,86 +37,25 @@ export default async function DashboardPage() {
                     <h1 className="text-3xl font-bold tracking-tight">AI Email Generator</h1>
                     <p className="text-muted-foreground text-sm mt-1">Logged in as {user.email}</p>
                 </div>
-                <form action="/auth/signout" method="post">
-                    <Button variant="outline" size="sm">
-                        Sign Out
-                    </Button>
-                </form>
+                <div className="flex items-center gap-4">
+                    <Link href="/dashboard/settings">
+                        <Button variant="ghost" size="sm">
+                            Settings
+                        </Button>
+                    </Link>
+                    {/* ИСПРАВЛЕНО: Теперь форма вызывает Server Action вместо перехода на кривой URL */}
+                    <form action={signOutAction}>
+                        <Button variant="outline" size="sm" type="submit">
+                            Sign Out
+                        </Button>
+                    </form>
+                </div>
             </header>
 
             <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Левая колонка: Форма генерации */}
+                {/* Левая колонка: Клиентская форма генерации */}
                 <div className="lg:col-span-1">
-                    <Card className="border-muted bg-card sticky top-6">
-                        <CardHeader>
-                            <CardTitle className="text-xl">Generator Options</CardTitle>
-                            <CardDescription>Customize your AI email parameters</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <form action={generateEmail} className="space-y-5">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">
-                                        What should the email be about?
-                                    </label>
-                                    <Textarea
-                                        name="prompt"
-                                        placeholder="Ask client for a feedback regarding our last meeting..."
-                                        required
-                                        className="bg-background min-h-[100px]"
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Tone</label>
-                                    <Select name="tone" defaultValue="professional">
-                                        <SelectTrigger className="bg-background">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="professional">
-                                                Professional
-                                            </SelectItem>
-                                            <SelectItem value="friendly">Friendly</SelectItem>
-                                            <SelectItem value="urgent">Urgent</SelectItem>
-                                            <SelectItem value="apologetic">Apologetic</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Length</label>
-                                    <Select name="length" defaultValue="medium">
-                                        <SelectTrigger className="bg-background">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="short">Short</SelectItem>
-                                            <SelectItem value="medium">Medium</SelectItem>
-                                            <SelectItem value="long">Long</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Language</label>
-                                    <Select name="language" defaultValue="English">
-                                        <SelectTrigger className="bg-background">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="English">English</SelectItem>
-                                            <SelectItem value="Ukrainian">Ukrainian</SelectItem>
-                                            <SelectItem value="Spanish">Spanish</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <Button type="submit" className="w-full font-medium">
-                                    Generate Email
-                                </Button>
-                            </form>
-                        </CardContent>
-                    </Card>
+                    <GeneratorFormClient generateAction={generateEmail} />
                 </div>
 
                 {/* Правая колонка: История генераций */}
@@ -128,32 +68,9 @@ export default async function DashboardPage() {
                         </Card>
                     ) : (
                         <div className="space-y-4">
+                            {/* КРИТИЧЕСКОЕ МЕСТО: передаем управление нашему новому компоненту */}
                             {emails.map((email) => (
-                                <Card key={email.id} className="border-muted bg-card">
-                                    <CardHeader className="pb-3">
-                                        <div className="flex justify-between items-start gap-4">
-                                            <CardTitle className="text-base font-medium line-clamp-1">
-                                                Prompt: {email.prompt}
-                                            </CardTitle>
-                                            <div className="flex gap-2 shrink-0">
-                                                <span className="text-[11px] font-medium bg-muted px-2 py-0.5 rounded uppercase">
-                                                    {email.tone}
-                                                </span>
-                                                <span className="text-[11px] font-medium bg-muted px-2 py-0.5 rounded uppercase">
-                                                    {email.language}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <CardDescription>
-                                            {new Date(email.created_at).toLocaleString()}
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <pre className="whitespace-pre-wrap font-sans text-sm text-foreground bg-background p-4 rounded-md border border-muted/50">
-                                            {email.result}
-                                        </pre>
-                                    </CardContent>
-                                </Card>
+                                <HistoryCardClient key={email.id} email={email} />
                             ))}
                         </div>
                     )}
