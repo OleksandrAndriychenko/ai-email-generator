@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { getSiteUrl } from "@/lib/site-url";
 
 export async function login(formData: FormData) {
     const supabase = await createClient();
@@ -33,7 +34,7 @@ export async function signup(formData: FormData) {
         password,
         options: {
             // Перенаправляем пользователя обратно в приложение после подтверждения email
-            emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/login`,
+            emailRedirectTo: `${getSiteUrl()}/login`,
         },
     });
 
