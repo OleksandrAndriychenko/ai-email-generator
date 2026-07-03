@@ -1,7 +1,8 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+
+import { createClient } from "@/lib/supabase/server";
 
 export async function login(formData: FormData) {
     const supabase = await createClient();
@@ -31,8 +32,8 @@ export async function signup(formData: FormData) {
         email,
         password,
         options: {
-            // Перенаправляем пользователя обратно на сайт после подтверждения email
-            emailRedirectTo: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/callback`,
+            // Перенаправляем пользователя обратно в приложение после подтверждения email
+            emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/login`,
         },
     });
 
@@ -41,4 +42,15 @@ export async function signup(formData: FormData) {
     }
 
     return redirect("/login?message=Check your email to confirm registration");
+}
+
+// Новый экшен для безопасного выхода из системы
+export async function signOutAction() {
+    const supabase = await createClient();
+
+    // 1. Стираем сессию на сервере Supabase (куки очистятся автоматически)
+    await supabase.auth.signOut();
+
+    // 2. Перенаправляем пользователя на страницу входа
+    return redirect("/login");
 }
